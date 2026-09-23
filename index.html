@@ -139,6 +139,29 @@ header.tienda::after{
   padding:0 5px;
 }
 
+/* ---------- Buscador ---------- */
+
+.buscador-wrap{
+  max-width:900px;
+  margin:18px auto 0;
+  padding:0 20px;
+}
+
+.buscador-wrap input{
+  width:100%;
+  border:1px solid var(--linea);
+  background:var(--papel);
+  border-radius:12px;
+  padding:11px 14px;
+  font-family:'Karla', sans-serif;
+  font-size:14px;
+  color:var(--texto);
+}
+.buscador-wrap input:focus{
+  outline:none;
+  border-color:var(--verde-hoja);
+}
+
 /* ---------- Categorías ---------- */
 
 .categorias{
@@ -183,6 +206,26 @@ main{
   grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
   gap:16px;
   margin-top:16px;
+}
+
+.sin-resultados{
+  grid-column:1/-1;
+  text-align:center;
+  color:var(--texto-suave);
+  font-size:14px;
+  padding:30px 10px;
+}
+
+@media (max-width:600px){
+  .grilla{
+    grid-template-columns:repeat(2, 1fr);
+    gap:10px;
+  }
+  .foto-producto{ font-size:34px; }
+  .datos-producto{ padding:10px; }
+  .nombre-producto{ font-size:13px; }
+  .precio{ font-size:15px; }
+  .btn-agregar{ padding:6px 10px; font-size:12px; }
 }
 
 .producto{
@@ -301,6 +344,13 @@ main{
   font-size:12.5px;
   color:var(--texto-suave);
   flex:1;
+}
+
+.unidad-precio{
+  font-size:11px;
+  font-weight:600;
+  color:var(--texto-suave);
+  margin-left:2px;
 }
 
 .fila-precio{
@@ -467,6 +517,21 @@ main{
 .btn-continuar:hover{ background:var(--coral-oscuro); }
 .btn-continuar:disabled{ background:#C9CFC8; cursor:not-allowed; }
 
+.btn-secundario{
+  width:100%;
+  background:none;
+  color:var(--verde-hoja);
+  border:1px solid var(--linea);
+  border-radius:12px;
+  padding:11px;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  font-family:'Karla', sans-serif;
+  margin-top:8px;
+}
+.btn-secundario:hover{ background:var(--crema); }
+
 /* ---------- Formulario de pedido ---------- */
 
 .campo{ margin-bottom:14px; }
@@ -555,6 +620,10 @@ main{
   </div>
 </header>
 
+<div class="buscador-wrap">
+  <input type="text" id="buscador" placeholder="🔎 Buscar producto...">
+</div>
+
 <div class="categorias" id="categorias"></div>
 
 <main>
@@ -599,14 +668,22 @@ const TIENDA = {
   // Si lo dejás en 0, se muestra el texto de "costoEnvioTexto" en vez de un monto fijo.
   costoEnvio: 1500,
   // Este texto solo se usa si costoEnvio está en 0 (envío "a coordinar").
-  costoEnvioTexto: "El costo de envío se coordina y lo abona el cliente al recibir el pedido."
+  costoEnvioTexto: "El costo de envío se coordina y lo abona el cliente al recibir el pedido.",
+  // Datos que se muestran cuando el cliente elige pagar por transferencia.
+  // Cada línea de esta lista aparece en un renglón distinto. Se pueden agregar
+  // o sacar líneas, o dejar la lista vacía [] si el comercio no usa transferencia.
+  datosTransferencia: [
+    "Alias: donalimpia.mp",
+    "CBU: 0000003100000012345678",
+    "Titular: Nombre Apellido"
+  ]
 };
 
 // 2) Categorías (tienen que coincidir con la "categoria" de cada producto)
 //    Estas son SOLO DE EJEMPLO, para mostrar que el catálogo sirve para
 //    cualquier rubro. Para un comercio real, dejás nada más las categorías
 //    que ese comercio necesita.
-const CATEGORIAS = ["Todos", "Verdulería", "Panadería", "Ferretería", "Indumentaria", "Muebles", "Limpieza"];
+const CATEGORIAS = ["Todos", "Verdulería", "Panadería", "Fiambrería", "Ferretería", "Indumentaria", "Muebles", "Limpieza"];
 
 // 3) Productos. Cada producto tiene:
 //    - icono: un emoji que se usa como foto de ejemplo (siempre queda como respaldo)
@@ -621,20 +698,34 @@ const CATEGORIAS = ["Todos", "Verdulería", "Panadería", "Ferretería", "Indume
 //    - stock: true = se puede agregar al carrito. false = aparece como "Sin stock"
 //      y no se puede agregar. Por ahora esto se cambia a mano; más adelante
 //      se puede conectar a un Google Sheet para que se actualice solo.
+//    - porPeso: OPCIONAL, poner true SOLO en productos que se venden por peso
+//      (verdura, fruta, fiambre, pan, etc.). El precio se muestra como precio
+//      por kg, y en el carrito la cantidad se suma/resta en gramos en vez de
+//      en unidades enteras.
+//    - pasoPesoKg: OPCIONAL, solo tiene sentido junto con porPeso:true. Define
+//      de a cuánto se suma/resta la cantidad en el carrito, EN KILOS:
+//      0.25 = de a 250g (ideal para verdura/fruta), 0.1 = de a 100g (ideal
+//      para fiambres/quesos). Si no se pone nada, suma de a 0.5 kg (500g).
+//      Así cada rubro puede tener su propio paso.
 const PRODUCTOS = [
-  // ---- Verdulería (ejemplo) ----
-  { id:1, nombre:"Tomate x kg", categoria:"Verdulería", precio:1400, icono:"🍅", imagen:"", stock:true, desc:"Fresco, seleccionado" },
-  { id:2, nombre:"Papa x kg", categoria:"Verdulería", precio:900, icono:"🥔", imagen:"", stock:true, desc:"" },
-  { id:3, nombre:"Banana x kg", categoria:"Verdulería", precio:1300, icono:"🍌", imagen:"", stock:true, desc:"" },
+  // ---- Verdulería (ejemplo: paso de 250g, ideal para fruta y verdura) ----
+  { id:1, nombre:"Tomate x kg", categoria:"Verdulería", precio:1400, icono:"🍅", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"Fresco, seleccionado" },
+  { id:2, nombre:"Papa x kg", categoria:"Verdulería", precio:900, icono:"🥔", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"" },
+  { id:3, nombre:"Banana x kg", categoria:"Verdulería", precio:1300, icono:"🍌", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"" },
   { id:4, nombre:"Lechuga (unidad)", categoria:"Verdulería", precio:700, icono:"🥬", imagen:"", stock:false, desc:"" },
-  { id:5, nombre:"Zapallo x kg", categoria:"Verdulería", precio:850, icono:"🎃", imagen:"", stock:true, desc:"" },
+  { id:5, nombre:"Zapallo x kg", categoria:"Verdulería", precio:850, icono:"🎃", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"" },
 
   // ---- Panadería (ejemplo) ----
-  { id:6, nombre:"Pan francés x kg", categoria:"Panadería", precio:2100, icono:"🥖", imagen:"", stock:true, desc:"Recién horneado" },
+  { id:6, nombre:"Pan francés x kg", categoria:"Panadería", precio:2100, icono:"🥖", imagen:"", stock:true, porPeso:true, desc:"Recién horneado" },
   { id:7, nombre:"Facturas x6", categoria:"Panadería", precio:2400, icono:"🥐", imagen:"", stock:true, desc:"Surtidas" },
   { id:8, nombre:"Pan lactal", categoria:"Panadería", precio:1900, icono:"🍞", imagen:"", stock:true, desc:"" },
-  { id:9, nombre:"Bizcochos x kg", categoria:"Panadería", precio:2600, icono:"🥨", imagen:"", stock:true, desc:"" },
+  { id:9, nombre:"Bizcochos x kg", categoria:"Panadería", precio:2600, icono:"🥨", imagen:"", stock:true, porPeso:true, desc:"" },
   { id:10, nombre:"Torta individual", categoria:"Panadería", precio:1800, icono:"🍰", imagen:"", stock:false, desc:"" },
+
+  // ---- Fiambrería (ejemplo: paso de 100g, ideal para fiambres y quesos) ----
+  { id:30, nombre:"Jamón cocido x kg", categoria:"Fiambrería", precio:9800, icono:"🥓", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.1, desc:"" },
+  { id:31, nombre:"Queso cremoso x kg", categoria:"Fiambrería", precio:11500, icono:"🧀", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.1, desc:"" },
+  { id:32, nombre:"Salame x kg", categoria:"Fiambrería", precio:13200, icono:"🌭", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.1, desc:"" },
 
   // ---- Ferretería (ejemplo) ----
   { id:11, nombre:"Tornillos x50", categoria:"Ferretería", precio:1200, icono:"🔩", imagen:"", stock:true, desc:"Surtidos" },
@@ -682,8 +773,10 @@ try{
 }catch(e){ carrito = []; }
 
 let categoriaActiva = "Todos";
+let textoBusqueda = "";
 let vistaCarrito = "lista"; // "lista" | "formulario"
 let entregaElegida = "retiro"; // "retiro" | "envio"
+let formaPagoElegida = "efectivo"; // "efectivo" | "transferencia"
 
 function guardarCarrito(){
   try{ localStorage.setItem("carrito_" + TIENDA.nombre, JSON.stringify(carrito)); }catch(e){}
@@ -710,7 +803,21 @@ function pintarCategorias(){
 function pintarProductos(){
   const cont = document.getElementById("grillaProductos");
   cont.innerHTML = "";
-  const lista = PRODUCTOS.filter(p => categoriaActiva === "Todos" || p.categoria === categoriaActiva);
+
+  const lista = PRODUCTOS.filter(p => {
+    if(textoBusqueda){
+      // Mientras se está buscando, se busca en TODO el catálogo,
+      // sin importar qué categoría esté seleccionada.
+      return p.nombre.toLowerCase().includes(textoBusqueda) ||
+             (p.desc || "").toLowerCase().includes(textoBusqueda);
+    }
+    return categoriaActiva === "Todos" || p.categoria === categoriaActiva;
+  });
+
+  if(lista.length === 0){
+    cont.innerHTML = `<p class="sin-resultados">No encontramos productos que coincidan con "${textoBusqueda}".</p>`;
+    return;
+  }
 
   lista.forEach(p => {
     const sinStock = p.stock === false;
@@ -735,7 +842,7 @@ function pintarProductos(){
         <div class="nombre-producto">${p.nombre}</div>
         <div class="desc-producto">${p.desc || ""}</div>
         <div class="fila-precio">
-          <span class="precio">${formatoPrecio(p.precio)}</span>
+          <span class="precio">${formatoPrecio(p.precio)}${p.porPeso ? '<span class="unidad-precio">/kg</span>' : ""}</span>
           <button class="btn-agregar" ${sinStock ? "disabled" : ""}>${sinStock ? "Sin stock" : "Agregar"}</button>
         </div>
       </div>
@@ -787,12 +894,25 @@ function agregarAlCarrito(producto){
 function cambiarCantidad(id, delta){
   const item = carrito.find(i => i.id === id);
   if(!item) return;
-  item.cantidad += delta;
+  const paso = item.porPeso ? (item.pasoPesoKg || 0.5) : 1;
+  item.cantidad = Math.round((item.cantidad + delta * paso) * 100) / 100;
   if(item.cantidad <= 0){ carrito = carrito.filter(i => i.id !== id); }
   guardarCarrito();
   actualizarBadge();
   pintarPanelCarrito();
 }
+
+function formatoCantidad(item){
+  return item.porPeso ? `${item.cantidad} kg` : item.cantidad;
+}
+
+function hayProductoPorPeso(){
+  return carrito.some(i => i.porPeso);
+}
+
+// Texto que se muestra cuando hay productos por peso en el carrito.
+// Se puede editar libremente el redactado sin romper nada.
+const AVISO_PESO = "⚖️ Los productos que se venden por peso se cobran según lo que marque la balanza al pesarlos: el monto puede ajustarse un poco respecto a lo que ves acá.";
 
 function quitarDelCarrito(id){
   carrito = carrito.filter(i => i.id !== id);
@@ -806,7 +926,7 @@ function subtotalCarrito(){
 }
 
 function cantidadTotalCarrito(){
-  return carrito.reduce((acc, i) => acc + i.cantidad, 0);
+  return carrito.length;
 }
 
 function actualizarBadge(){
@@ -847,10 +967,10 @@ function pintarVistaLista(){
       <div class="item-icono">${i.icono}</div>
       <div class="item-info">
         <div class="item-nombre">${i.nombre}</div>
-        <div class="item-precio-unit">${formatoPrecio(i.precio)} c/u</div>
+        <div class="item-precio-unit">${formatoPrecio(i.precio)} ${i.porPeso ? "por kg" : "c/u"}</div>
         <div class="stepper">
           <button onclick="cambiarCantidad(${i.id}, -1)">−</button>
-          <span>${i.cantidad}</span>
+          <span>${formatoCantidad(i)}</span>
           <button onclick="cambiarCantidad(${i.id}, 1)">+</button>
         </div>
         <button class="quitar" onclick="quitarDelCarrito(${i.id})">Quitar</button>
@@ -859,16 +979,19 @@ function pintarVistaLista(){
   `).join("");
 
   pie.innerHTML = `
+    ${hayProductoPorPeso() ? `<div class="aviso-envio">${AVISO_PESO}</div>` : ""}
     <div class="fila-subtotal">
       <span>Subtotal</span>
       <span>${formatoPrecio(subtotalCarrito())}</span>
     </div>
-    <button class="btn-continuar" id="btnContinuar">Continuar pedido</button>
+    <button class="btn-continuar" id="btnContinuar">Finalizar pedido</button>
+    <button class="btn-secundario" id="btnSeguirComprando">Seguir comprando</button>
   `;
   document.getElementById("btnContinuar").onclick = () => {
     vistaCarrito = "formulario";
     pintarPanelCarrito();
   };
+  document.getElementById("btnSeguirComprando").onclick = cerrarCarrito;
 }
 
 function pintarVistaFormulario(){
@@ -884,7 +1007,14 @@ function pintarVistaFormulario(){
       <div class="opcion-entrega ${entregaElegida === 'envio' ? 'activo' : ''}" id="optEnvio">🚚 Envío a domicilio</div>
     </div>
 
-    ${entregaElegida === 'envio' ? `<div class="aviso-envio">${TIENDA.costoEnvio > 0 ? `Costo de envío: ${formatoPrecio(TIENDA.costoEnvio)}` : TIENDA.costoEnvioTexto}</div>` : ""}
+    ${entregaElegida === 'envio' ? `<div class="aviso-envio">🚚 ${TIENDA.costoEnvio > 0 ? `Costo de envío: ${formatoPrecio(TIENDA.costoEnvio)} — se abona aparte, al cadete, en el momento de la entrega.` : TIENDA.costoEnvioTexto}</div>` : ""}
+
+    <div class="opciones-entrega">
+      <div class="opcion-entrega ${formaPagoElegida === 'efectivo' ? 'activo' : ''}" id="optEfectivo">💵 Efectivo</div>
+      <div class="opcion-entrega ${formaPagoElegida === 'transferencia' ? 'activo' : ''}" id="optTransferencia">🏦 Transferencia</div>
+    </div>
+
+    ${formaPagoElegida === 'transferencia' && TIENDA.datosTransferencia.length ? `<div class="aviso-envio">${TIENDA.datosTransferencia.join("<br>")}</div>` : ""}
 
     <div class="campo">
       <label>Nombre y apellido</label>
@@ -908,22 +1038,21 @@ function pintarVistaFormulario(){
   document.getElementById("btnVolver").onclick = () => { vistaCarrito = "lista"; pintarPanelCarrito(); };
   document.getElementById("optRetiro").onclick = () => { entregaElegida = "retiro"; pintarVistaFormulario(); };
   document.getElementById("optEnvio").onclick = () => { entregaElegida = "envio"; pintarVistaFormulario(); };
+  document.getElementById("optEfectivo").onclick = () => { formaPagoElegida = "efectivo"; pintarVistaFormulario(); };
+  document.getElementById("optTransferencia").onclick = () => { formaPagoElegida = "transferencia"; pintarVistaFormulario(); };
 
   const envioActual = entregaElegida === "envio" && TIENDA.costoEnvio > 0 ? TIENDA.costoEnvio : 0;
 
   pie.innerHTML = `
+    ${hayProductoPorPeso() ? `<div class="aviso-envio">${AVISO_PESO}</div>` : ""}
     <div class="fila-subtotal">
-      <span>Subtotal</span>
+      <span>Subtotal — a pagar al comercio</span>
       <span>${formatoPrecio(subtotalCarrito())}</span>
     </div>
     ${envioActual > 0 ? `
     <div class="fila-subtotal" style="font-size:13.5px; color:var(--texto-suave); font-weight:600;">
-      <span>Costo de envío</span>
+      <span>Envío — se paga aparte, al cadete</span>
       <span>${formatoPrecio(envioActual)}</span>
-    </div>
-    <div class="fila-subtotal" style="border-top:1px solid var(--linea); padding-top:10px;">
-      <span>Total</span>
-      <span>${formatoPrecio(subtotalCarrito() + envioActual)}</span>
     </div>` : ""}
     <button class="btn-continuar" id="btnEnviarPedido">Enviar pedido por WhatsApp</button>
   `;
@@ -949,18 +1078,12 @@ function enviarPedidoPorWhatsapp(){
   let mensaje = `Hola ${TIENDA.nombre}! Quiero hacer este pedido:%0A%0A`;
 
   carrito.forEach(i => {
-    mensaje += `• ${i.cantidad} x ${i.nombre} — ${formatoPrecio(i.precio * i.cantidad)}%0A`;
+    mensaje += `• ${formatoCantidad(i)} x ${i.nombre} — ${formatoPrecio(i.precio * i.cantidad)}%0A`;
   });
 
-  const envioFinal = entregaElegida === "envio" && TIENDA.costoEnvio > 0 ? TIENDA.costoEnvio : 0;
-  mensaje += `%0ASubtotal: ${formatoPrecio(subtotalCarrito())}%0A`;
-  if(envioFinal > 0){
-    mensaje += `Costo de envío: ${formatoPrecio(envioFinal)}%0A`;
-    mensaje += `Total: ${formatoPrecio(subtotalCarrito() + envioFinal)}%0A%0A`;
-  } else {
-    mensaje += `Total: ${formatoPrecio(subtotalCarrito())}%0A%0A`;
-  }
+  mensaje += `%0ATotal de la compra${hayProductoPorPeso() ? " (puede ajustarse al pesar)" : ""}: ${formatoPrecio(subtotalCarrito())}%0A%0A`;
   mensaje += `Modalidad: ${entregaElegida === "envio" ? "Envío a domicilio" : "Retiro en el local"}%0A`;
+  mensaje += `Forma de pago: ${formaPagoElegida === "transferencia" ? "Transferencia" : "Efectivo"}%0A`;
   mensaje += `Nombre: ${nombre}%0A`;
   mensaje += `Teléfono: ${telefono}%0A`;
   if(direccion) mensaje += `Dirección: ${direccion}%0A`;
@@ -979,6 +1102,10 @@ function enviarPedidoPorWhatsapp(){
 document.getElementById("btnAbrirCarrito").onclick = abrirCarrito;
 document.getElementById("btnCerrarCarrito").onclick = cerrarCarrito;
 document.getElementById("fondoOscuro").onclick = cerrarCarrito;
+document.getElementById("buscador").addEventListener("input", (e) => {
+  textoBusqueda = e.target.value.trim().toLowerCase();
+  pintarProductos();
+});
 
 // ---------- Arranque ----------
 pintarCategorias();
