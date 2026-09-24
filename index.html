@@ -187,6 +187,15 @@ header.tienda::after{
   padding:0 5px;
 }
 
+@keyframes pulsoContador{
+  0%{ transform:scale(1); }
+  35%{ transform:scale(1.4); }
+  100%{ transform:scale(1); }
+}
+.badge.pulso, .fab-badge.pulso{
+  animation:pulsoContador .35s ease;
+}
+
 /* ---------- Buscador ---------- */
 
 .buscador-wrap{
@@ -642,6 +651,56 @@ main{
   margin-bottom:14px;
 }
 
+.datos-transferencia{
+  background:var(--crema);
+  border-radius:10px;
+  padding:12px 14px;
+  margin-bottom:14px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.fila-dato-transferencia{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.etiqueta-dato{
+  display:block;
+  font-size:11px;
+  font-weight:700;
+  color:var(--texto-suave);
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+
+.valor-dato{
+  display:block;
+  font-family:'Sora', sans-serif;
+  font-size:17px;
+  font-weight:700;
+  color:var(--verde-oscuro);
+  word-break:break-all;
+}
+
+.btn-copiar{
+  background:var(--papel);
+  border:1px solid var(--linea);
+  color:var(--verde-hoja);
+  font-size:12px;
+  font-weight:700;
+  padding:7px 12px;
+  border-radius:8px;
+  cursor:pointer;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+.btn-copiar:hover{ background:var(--verde-hoja); color:white; }
+.btn-copiar.copiado{ background:var(--verde-hoja); border-color:var(--verde-hoja); color:white; }
+
 @media (max-width:480px){
   .header-top{ flex-direction:column; }
   .btn-carrito{ align-self:flex-start; }
@@ -717,20 +776,21 @@ const TIENDA = {
   descripcion: "Ejemplo de catálogo con productos de distintos rubros. Elegí, armá tu pedido y coordinamos todo por WhatsApp.",
   // Número de WhatsApp SIN el "+", SIN espacios ni guiones.
   // Ejemplo Argentina Chacabuco: código país 54 + 9 + código de área SIN el 0 + número SIN el 15
-  whatsapp: "5492364410707",
+  whatsapp: "5491122334455",
   // Costo de envío EN NÚMEROS (sin puntos ni comas). Ejemplo: 1500
   // Si lo dejás en 0, se muestra el texto de "costoEnvioTexto" en vez de un monto fijo.
   costoEnvio: 1500,
   // Este texto solo se usa si costoEnvio está en 0 (envío "a coordinar").
   costoEnvioTexto: "El costo de envío se coordina y lo abona el cliente al recibir el pedido.",
   // Datos que se muestran cuando el cliente elige pagar por transferencia.
-  // Cada línea de esta lista aparece en un renglón distinto. Se pueden agregar
-  // o sacar líneas, o dejar la lista vacía [] si el comercio no usa transferencia.
-  datosTransferencia: [
-    "Alias: donalimpia.mp",
-    "CBU: 0000003100000012345678",
-    "Titular: Nombre Apellido"
-  ]
+  // Se muestran grandes y con botón de copiar (para Alias y CBU, así no hay
+  // errores al transferir). Si el comercio no usa transferencia, dejá
+  // alias y cbu en "" — directamente no va a aparecer esa opción de pago.
+  datosTransferencia: {
+    alias: "donalimpia.mp",
+    cbu: "0000003100000012345678",
+    titular: "Nombre Apellido"
+  }
 };
 
 // 2) Categorías (tienen que coincidir con la "categoria" de cada producto)
@@ -831,6 +891,10 @@ let textoBusqueda = "";
 let vistaCarrito = "lista"; // "lista" | "formulario"
 let entregaElegida = "retiro"; // "retiro" | "envio"
 let formaPagoElegida = "efectivo"; // "efectivo" | "transferencia"
+// Acá se guarda lo que el cliente va escribiendo en el formulario, para que
+// no se pierda si cambia de "retiro" a "envío" (o de forma de pago) y la
+// pantalla se vuelve a dibujar.
+let datosFormulario = { nombre:"", telefono:"", direccion:"", notas:"" };
 
 function guardarCarrito(){
   try{ localStorage.setItem("carrito_" + TIENDA.nombre, JSON.stringify(carrito)); }catch(e){}
@@ -942,7 +1006,15 @@ function agregarAlCarrito(producto){
   else{ carrito.push({ ...producto, cantidad: 1 }); }
   guardarCarrito();
   actualizarBadge();
-  abrirCarrito();
+  pulsarBadges();
+}
+
+function pulsarBadges(){
+  [document.getElementById("cantidadCarrito"), document.getElementById("cantidadCarritoFlotante")].forEach(el => {
+    el.classList.remove("pulso");
+    void el.offsetWidth; // fuerza a reiniciar la animación aunque se toque seguido
+    el.classList.add("pulso");
+  });
 }
 
 function cambiarCantidad(id, delta){
@@ -962,6 +1034,48 @@ function formatoCantidad(item){
 
 function hayProductoPorPeso(){
   return carrito.some(i => i.porPeso);
+}
+
+// Filtros para los campos del formulario.
+function soloLetras(texto){
+  return texto.replace(/[^A-Za-zÀ-ÿñÑ\s]/g, "");
+}
+function soloNumeros(texto){
+  return texto.replace(/[^0-9]/g, "");
+}
+
+function hayDatosTransferencia(){
+  return TIENDA.datosTransferencia && (TIENDA.datosTransferencia.alias || TIENDA.datosTransferencia.cbu);
+}
+
+function activarBotonesCopiar(contenedor){
+  contenedor.querySelectorAll(".btn-copiar").forEach(btn => {
+    btn.onclick = () => {
+      const texto = btn.dataset.copiar;
+      const avisarCopiado = () => {
+        const textoOriginal = "Copiar";
+        btn.textContent = "¡Copiado!";
+        btn.classList.add("copiado");
+        setTimeout(() => { btn.textContent = textoOriginal; btn.classList.remove("copiado"); }, 1500);
+      };
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(texto).then(avisarCopiado).catch(() => copiarConFallback(texto, avisarCopiado));
+      }else{
+        copiarConFallback(texto, avisarCopiado);
+      }
+    };
+  });
+}
+
+function copiarConFallback(texto, callback){
+  const temporal = document.createElement("textarea");
+  temporal.value = texto;
+  temporal.style.position = "fixed";
+  temporal.style.opacity = "0";
+  document.body.appendChild(temporal);
+  temporal.select();
+  try{ document.execCommand("copy"); callback(); }catch(e){}
+  document.body.removeChild(temporal);
 }
 
 // Texto que se muestra cuando hay productos por peso en el carrito.
@@ -1067,27 +1181,43 @@ function pintarVistaFormulario(){
 
     <div class="opciones-entrega">
       <div class="opcion-entrega ${formaPagoElegida === 'efectivo' ? 'activo' : ''}" id="optEfectivo">💵 Efectivo</div>
-      <div class="opcion-entrega ${formaPagoElegida === 'transferencia' ? 'activo' : ''}" id="optTransferencia">🏦 Transferencia</div>
+      ${hayDatosTransferencia() ? `<div class="opcion-entrega ${formaPagoElegida === 'transferencia' ? 'activo' : ''}" id="optTransferencia">🏦 Transferencia</div>` : ""}
     </div>
 
-    ${formaPagoElegida === 'transferencia' && TIENDA.datosTransferencia.length ? `<div class="aviso-envio">${TIENDA.datosTransferencia.join("<br>")}</div>` : ""}
+    ${formaPagoElegida === 'transferencia' && hayDatosTransferencia() ? `
+    <div class="datos-transferencia">
+      ${TIENDA.datosTransferencia.alias ? `
+      <div class="fila-dato-transferencia">
+        <div><span class="etiqueta-dato">Alias</span><span class="valor-dato">${TIENDA.datosTransferencia.alias}</span></div>
+        <button class="btn-copiar" type="button" data-copiar="${TIENDA.datosTransferencia.alias}">Copiar</button>
+      </div>` : ""}
+      ${TIENDA.datosTransferencia.cbu ? `
+      <div class="fila-dato-transferencia">
+        <div><span class="etiqueta-dato">CBU</span><span class="valor-dato">${TIENDA.datosTransferencia.cbu}</span></div>
+        <button class="btn-copiar" type="button" data-copiar="${TIENDA.datosTransferencia.cbu}">Copiar</button>
+      </div>` : ""}
+      ${TIENDA.datosTransferencia.titular ? `
+      <div class="fila-dato-transferencia">
+        <div><span class="etiqueta-dato">Titular</span><span class="valor-dato">${TIENDA.datosTransferencia.titular}</span></div>
+      </div>` : ""}
+    </div>` : ""}
 
     <div class="campo">
       <label>Nombre y apellido</label>
-      <input type="text" id="campoNombre" placeholder="Tu nombre">
+      <input type="text" id="campoNombre" placeholder="Tu nombre" value="${datosFormulario.nombre}">
     </div>
     <div class="campo">
       <label>Teléfono</label>
-      <input type="tel" id="campoTelefono" placeholder="Tu número de contacto">
+      <input type="tel" id="campoTelefono" placeholder="Tu número de contacto" value="${datosFormulario.telefono}">
     </div>
     ${entregaElegida === 'envio' ? `
     <div class="campo">
       <label>Dirección de entrega</label>
-      <input type="text" id="campoDireccion" placeholder="Calle, número, referencia">
+      <input type="text" id="campoDireccion" placeholder="Calle, número, referencia" value="${datosFormulario.direccion}">
     </div>` : ""}
     <div class="campo">
       <label>Aclaraciones (opcional)</label>
-      <textarea id="campoNotas" placeholder="Ej: horario preferido, forma de pago, etc."></textarea>
+      <textarea id="campoNotas" placeholder="Ej: horario preferido, forma de pago, etc.">${datosFormulario.notas}</textarea>
     </div>
   `;
 
@@ -1095,7 +1225,29 @@ function pintarVistaFormulario(){
   document.getElementById("optRetiro").onclick = () => { entregaElegida = "retiro"; pintarVistaFormulario(); };
   document.getElementById("optEnvio").onclick = () => { entregaElegida = "envio"; pintarVistaFormulario(); };
   document.getElementById("optEfectivo").onclick = () => { formaPagoElegida = "efectivo"; pintarVistaFormulario(); };
-  document.getElementById("optTransferencia").onclick = () => { formaPagoElegida = "transferencia"; pintarVistaFormulario(); };
+  const optTransferencia = document.getElementById("optTransferencia");
+  if(optTransferencia){
+    optTransferencia.onclick = () => { formaPagoElegida = "transferencia"; pintarVistaFormulario(); };
+  }
+  activarBotonesCopiar(cuerpo);
+
+  // Cada vez que el cliente escribe algo, se guarda al toque en datosFormulario,
+  // así si se vuelve a dibujar la pantalla (por cambiar retiro/envío o la forma
+  // de pago) los datos ya escritos no se pierden.
+  document.getElementById("campoNombre").oninput = e => {
+    const limpio = soloLetras(e.target.value);
+    if(limpio !== e.target.value) e.target.value = limpio;
+    datosFormulario.nombre = limpio;
+  };
+  document.getElementById("campoTelefono").oninput = e => {
+    const limpio = soloNumeros(e.target.value);
+    if(limpio !== e.target.value) e.target.value = limpio;
+    datosFormulario.telefono = limpio;
+  };
+  document.getElementById("campoNotas").oninput = e => datosFormulario.notas = e.target.value;
+  if(entregaElegida === 'envio'){
+    document.getElementById("campoDireccion").oninput = e => datosFormulario.direccion = e.target.value;
+  }
 
   const envioActual = entregaElegida === "envio" && TIENDA.costoEnvio > 0 ? TIENDA.costoEnvio : 0;
 
@@ -1117,10 +1269,10 @@ function pintarVistaFormulario(){
 
 // ---------- Armado y envío del mensaje de WhatsApp ----------
 function enviarPedidoPorWhatsapp(){
-  const nombre = document.getElementById("campoNombre").value.trim();
-  const telefono = document.getElementById("campoTelefono").value.trim();
-  const direccion = entregaElegida === "envio" ? document.getElementById("campoDireccion").value.trim() : "";
-  const notas = document.getElementById("campoNotas").value.trim();
+  const nombre = datosFormulario.nombre.trim();
+  const telefono = datosFormulario.telefono.trim();
+  const direccion = entregaElegida === "envio" ? datosFormulario.direccion.trim() : "";
+  const notas = datosFormulario.notas.trim();
 
   if(!nombre || !telefono){
     alert("Por favor completá al menos tu nombre y tu teléfono.");
@@ -1151,6 +1303,7 @@ function enviarPedidoPorWhatsapp(){
   carrito = [];
   guardarCarrito();
   actualizarBadge();
+  datosFormulario = { nombre:"", telefono:"", direccion:"", notas:"" };
   cerrarCarrito();
 }
 
