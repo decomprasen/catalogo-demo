@@ -114,6 +114,36 @@ header.tienda::after{
   border-color:rgba(228,87,46,.6);
 }
 
+.chip-clickeable{
+  cursor:pointer;
+}
+.chip-clickeable::after{
+  content:" ▾";
+  font-size:10px;
+}
+
+.detalle-horario{
+  display:none;
+  max-width:900px;
+  margin:10px auto 0;
+  background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:10px;
+  padding:10px 14px;
+}
+.detalle-horario.abierto{ display:block; }
+
+.fila-horario{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  font-size:12.5px;
+  color:var(--crema);
+  padding:3px 0;
+}
+.fila-horario span:first-child{ font-weight:700; }
+.fila-horario span:last-child{ color:#D7E6DF; text-align:right; }
+
 /* ---------- Carrito flotante al scrollear ---------- */
 
 .fab-carrito{
@@ -558,6 +588,26 @@ main{
 }
 .stepper span{ font-size:13.5px; font-weight:600; min-width:16px; text-align:center; }
 
+.input-cantidad{
+  width:40px;
+  text-align:center;
+  font-size:13.5px;
+  font-weight:600;
+  font-family:'Karla', sans-serif;
+  border:1px solid var(--linea);
+  border-radius:6px;
+  padding:3px 2px;
+  color:var(--texto);
+}
+.input-cantidad:focus{
+  outline:none;
+  border-color:var(--verde-hoja);
+}
+.sufijo-cantidad{
+  font-size:12px;
+  color:var(--texto-suave);
+}
+
 .quitar{
   background:none;
   border:none;
@@ -693,6 +743,93 @@ main{
   line-height:1.5;
 }
 
+/* ---------- Modal de variantes (tamaños/presentaciones) ---------- */
+
+.modal-variantes{
+  position:fixed;
+  left:50%;
+  top:50%;
+  transform:translate(-50%, -46%);
+  width:min(380px, 90%);
+  max-height:80vh;
+  background:var(--papel);
+  border-radius:16px;
+  z-index:26;
+  opacity:0;
+  pointer-events:none;
+  overflow-y:auto;
+  transition:opacity .2s ease, transform .2s ease;
+  display:flex;
+  flex-direction:column;
+}
+.modal-variantes.abierto{
+  opacity:1;
+  transform:translate(-50%, -50%);
+  pointer-events:auto;
+}
+
+.modal-variantes-header{
+  padding:16px 18px;
+  border-bottom:1px solid var(--linea);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.modal-variantes-header h3{
+  font-size:16px;
+  line-height:1.3;
+}
+
+.modal-variantes-body{
+  padding:16px 18px 18px;
+}
+
+.modal-variantes-desc{
+  font-size:13px;
+  color:var(--texto-suave);
+  margin-bottom:12px;
+}
+
+.lista-variantes{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-bottom:16px;
+}
+
+.fila-variante{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border:1px solid var(--linea);
+  border-radius:10px;
+  padding:11px 13px;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+}
+.fila-variante.activo{
+  border-color:var(--verde-hoja);
+  background:#EAF2EE;
+}
+.variante-nombre{
+  font-size:13.5px;
+  font-weight:600;
+}
+.variante-precio{
+  font-family:'Sora', sans-serif;
+  font-weight:700;
+  font-size:14px;
+  color:var(--verde-oscuro);
+}
+
+.precio-desde{
+  font-size:11px;
+  font-weight:600;
+  color:var(--texto-suave);
+  display:block;
+}
+
 .datos-transferencia{
   background:var(--crema);
   border-radius:10px;
@@ -763,10 +900,11 @@ main{
       </button>
     </div>
     <div class="info-envio">
-      <span class="chip" id="chipHorario">🕒 Cargando horario...</span>
+      <span class="chip chip-clickeable" id="chipHorario">🕒 Cargando horario...</span>
       <span class="chip">🚚 Envío a domicilio (a cargo del cliente)</span>
       <span class="chip">🏪 Retiro en el local</span>
     </div>
+    <div class="detalle-horario" id="detalleHorario"></div>
   </div>
 </header>
 
@@ -806,6 +944,16 @@ main{
 
 </aside>
 
+<!-- ---------- Modal para elegir variante (tamaño/presentación) ---------- -->
+<div class="fondo-oscuro" id="fondoVariantes"></div>
+<div class="modal-variantes" id="modalVariantes">
+  <div class="modal-variantes-header">
+    <h3 id="modalVariantesTitulo">Producto</h3>
+    <button class="cerrar" id="btnCerrarVariantes">✕</button>
+  </div>
+  <div class="modal-variantes-body" id="modalVariantesBody"></div>
+</div>
+
 <script>
 /* ======================================================================
    ⚙️  CONFIGURACIÓN — ACÁ ES DONDE PEDRO EDITA CADA CATÁLOGO
@@ -819,7 +967,7 @@ const TIENDA = {
   descripcion: "Ejemplo de catálogo con productos de distintos rubros. Elegí, armá tu pedido y coordinamos todo por WhatsApp.",
   // Número de WhatsApp SIN el "+", SIN espacios ni guiones.
   // Ejemplo Argentina Chacabuco: código país 54 + 9 + código de área SIN el 0 + número SIN el 15
-  whatsapp: "5492364410707",
+  whatsapp: "5491122334455",
   // Costo de envío EN NÚMEROS (sin puntos ni comas). Ejemplo: 1500
   // Si lo dejás en 0, se muestra el texto de "costoEnvioTexto" en vez de un monto fijo.
   costoEnvio: 1500,
@@ -859,7 +1007,7 @@ const TIENDA = {
 // "Destacados" es un filtro especial: no es un rubro real, muestra los
 // productos marcados con destacado:true sin importar su categoría. Los
 // productos siguen viéndose en su categoría normal además de acá.
-const CATEGORIAS = ["Todos", "Destacados", "Verdulería", "Panadería", "Fiambrería", "Ferretería", "Indumentaria", "Muebles", "Limpieza"];
+const CATEGORIAS = ["Todos", "Destacados", "Verdulería", "Panadería", "Fiambrería", "Ferretería", "Indumentaria", "Muebles", "Descartables", "Limpieza"];
 
 // 3) Productos. Cada producto tiene:
 //    - icono: un emoji que se usa como foto de ejemplo (siempre queda como respaldo)
@@ -878,22 +1026,33 @@ const CATEGORIAS = ["Todos", "Destacados", "Verdulería", "Panadería", "Fiambre
 //      en el filtro "Destacados" (además de en su categoría de siempre), y
 //      con una etiqueta de "Destacado" en la tarjeta para que se note en
 //      cualquier lado que se muestre.
+//    - variantes: OPCIONAL, para productos que se venden en distintos
+//      tamaños/presentaciones con precios distintos (ej: una bandeja de
+//      cartón chica, mediana o grande). Si un producto tiene "variantes", NO
+//      lleva "precio" propio: el precio sale de cada variante. En la tarjeta
+//      se muestra "Desde $X" (el precio más bajo) y en vez de "Agregar" el
+//      botón dice "Ver opciones": al tocarlo se abre una ventanita para
+//      elegir el tamaño, y ese es el que se agrega al carrito, con su precio
+//      correspondiente. Es una lista, puede tener tantas variantes como
+//      haga falta, cada una con "nombre" y "precio".
 //    - porPeso: OPCIONAL, poner true SOLO en productos que se venden por peso
 //      (verdura, fruta, fiambre, pan, etc.). El precio se muestra como precio
 //      por kg, y en el carrito la cantidad se suma/resta en gramos en vez de
 //      en unidades enteras.
-//    - pasoPesoKg: OPCIONAL, solo tiene sentido junto con porPeso:true. Define
-//      de a cuánto se suma/resta la cantidad en el carrito, EN KILOS:
-//      0.25 = de a 250g (ideal para verdura/fruta), 0.1 = de a 100g (ideal
-//      para fiambres/quesos). Si no se pone nada, suma de a 0.5 kg (500g).
-//      Así cada rubro puede tener su propio paso.
+//    - minimoPesoKg: OPCIONAL, la cantidad mínima de venta EN KILOS con la
+//      que arranca el producto al agregarlo. Si no se pone nada, arranca en
+//      0.5 kg (500g).
+//    - pasoPesoKg: OPCIONAL, de a cuánto suben o bajan los botones +/- EN
+//      KILOS. Si no se pone nada, de a 0.1 kg (100g). En cualquier caso, el
+//      cliente siempre puede escribir la cantidad exacta a mano en el
+//      carrito, sin depender de estos pasos.
 const PRODUCTOS = [
   // ---- Verdulería (ejemplo: paso de 250g, ideal para fruta y verdura) ----
-  { id:1, nombre:"Tomate x kg", categoria:"Verdulería", precio:1400, icono:"🍅", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"Fresco, seleccionado" },
-  { id:2, nombre:"Papa x kg", categoria:"Verdulería", precio:900, icono:"🥔", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"" },
-  { id:3, nombre:"Banana x kg", categoria:"Verdulería", precio:1300, icono:"🍌", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"" },
+  { id:1, nombre:"Tomate x kg", categoria:"Verdulería", precio:1400, icono:"🍅", imagen:"", stock:true, porPeso:true, desc:"Fresco, seleccionado" },
+  { id:2, nombre:"Papa x kg", categoria:"Verdulería", precio:900, icono:"🥔", imagen:"", stock:true, porPeso:true, desc:"" },
+  { id:3, nombre:"Banana x kg", categoria:"Verdulería", precio:1300, icono:"🍌", imagen:"", stock:true, porPeso:true, desc:"" },
   { id:4, nombre:"Lechuga (unidad)", categoria:"Verdulería", precio:700, icono:"🥬", imagen:"", stock:false, desc:"" },
-  { id:5, nombre:"Zapallo x kg", categoria:"Verdulería", precio:850, icono:"🎃", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.25, desc:"" },
+  { id:5, nombre:"Zapallo x kg", categoria:"Verdulería", precio:850, icono:"🎃", imagen:"", stock:true, porPeso:true, desc:"" },
 
   // ---- Panadería (ejemplo) ----
   { id:6, nombre:"Pan francés x kg", categoria:"Panadería", precio:2100, icono:"🥖", imagen:"", stock:true, porPeso:true, desc:"Recién horneado" },
@@ -903,9 +1062,9 @@ const PRODUCTOS = [
   { id:10, nombre:"Torta individual", categoria:"Panadería", precio:1800, icono:"🍰", imagen:"", stock:false, desc:"" },
 
   // ---- Fiambrería (ejemplo: paso de 100g, ideal para fiambres y quesos) ----
-  { id:30, nombre:"Jamón cocido x kg", categoria:"Fiambrería", precio:9800, icono:"🥓", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.1, desc:"" },
-  { id:31, nombre:"Queso cremoso x kg", categoria:"Fiambrería", precio:11500, icono:"🧀", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.1, desc:"" },
-  { id:32, nombre:"Salame x kg", categoria:"Fiambrería", precio:13200, icono:"🌭", imagen:"", stock:true, porPeso:true, pasoPesoKg:0.1, desc:"" },
+  { id:30, nombre:"Jamón cocido x kg", categoria:"Fiambrería", precio:9800, icono:"🥓", imagen:"", stock:true, porPeso:true, minimoPesoKg:0.1, pasoPesoKg:0.05, desc:"" },
+  { id:31, nombre:"Queso cremoso x kg", categoria:"Fiambrería", precio:11500, icono:"🧀", imagen:"", stock:true, porPeso:true, minimoPesoKg:0.1, pasoPesoKg:0.05, desc:"" },
+  { id:32, nombre:"Salame x kg", categoria:"Fiambrería", precio:13200, icono:"🌭", imagen:"", stock:true, porPeso:true, minimoPesoKg:0.1, pasoPesoKg:0.05, desc:"" },
 
   // ---- Ferretería (ejemplo) ----
   { id:11, nombre:"Tornillos x50", categoria:"Ferretería", precio:1200, icono:"🔩", imagen:"", stock:true, desc:"Surtidos" },
@@ -928,6 +1087,23 @@ const PRODUCTOS = [
   { id:27, nombre:"Placard 2 puertas", categoria:"Muebles", precio:98000, icono:"🚪", imagen:"", stock:true, desc:"A medida" },
   { id:28, nombre:"Escritorio", categoria:"Muebles", precio:65000, icono:"🖥️", imagen:"", stock:true, desc:"" },
   { id:29, nombre:"Repisa flotante", categoria:"Muebles", precio:15000, icono:"📚", imagen:"", stock:true, desc:"" },
+
+  // ---- Descartables (ejemplo con variantes: mismo producto, distintos
+  // tamaños y precios, para no tener que hacer una tarjeta por cada uno) ----
+  { id:33, nombre:"Bandeja de cartón", categoria:"Descartables", icono:"🍱", imagen:"", stock:true, desc:"Apta para alimentos",
+    variantes: [
+      { nombre: "Chica (100 unidades)", precio: 1800 },
+      { nombre: "Mediana (100 unidades)", precio: 2400 },
+      { nombre: "Grande (100 unidades)", precio: 3100 }
+    ]
+  },
+  { id:34, nombre:"Vasos descartables", categoria:"Descartables", icono:"🥤", imagen:"", stock:true, desc:"Aptos para bebidas frías y calientes",
+    variantes: [
+      { nombre: "220cc (x50)", precio: 1500 },
+      { nombre: "350cc (x50)", precio: 1900 }
+    ]
+  },
+  { id:35, nombre:"Cubiertos descartables x50", categoria:"Descartables", precio:1400, icono:"🍴", imagen:"", stock:true, desc:"" },
 
   // ---- Limpieza (el rubro del comercio piloto) ----
   { id:21, nombre:"Detergente concentrado 750ml", categoria:"Limpieza", precio:2200, icono:"🧴", imagen:"imagenes/detergente.jpg", stock:true, destacado:true, desc:"Rinde hasta 40 lavados" },
@@ -1008,12 +1184,15 @@ function pintarProductos(){
 
   lista.forEach(p => {
     const sinStock = p.stock === false;
+    const tieneVariantes = p.variantes && p.variantes.length > 0;
     // Lista de fotos del producto: si tiene "imagenes" (varias), se usa esa.
     // Si no, y tiene "imagen" (una sola), se usa como lista de un solo elemento.
     const imagenes = (p.imagenes && p.imagenes.length) ? p.imagenes : (p.imagen ? [p.imagen] : []);
 
     const card = document.createElement("div");
     card.className = "producto" + (sinStock ? " sin-stock" : "");
+
+    const precioMasBajo = tieneVariantes ? Math.min(...p.variantes.map(v => v.precio)) : p.precio;
 
     card.innerHTML = `
       <div class="foto-producto">
@@ -1030,8 +1209,10 @@ function pintarProductos(){
         <div class="nombre-producto">${p.nombre}</div>
         <div class="desc-producto">${p.desc || ""}</div>
         <div class="fila-precio">
-          <span class="precio">${formatoPrecio(p.precio)}${p.porPeso ? '<span class="unidad-precio">/kg</span>' : ""}</span>
-          <button class="btn-agregar" ${sinStock ? "disabled" : ""}>${sinStock ? "Sin stock" : "Agregar"}</button>
+          <span class="precio">
+            ${tieneVariantes ? `<span class="precio-desde">Desde</span>${formatoPrecio(precioMasBajo)}` : `${formatoPrecio(p.precio)}${p.porPeso ? '<span class="unidad-precio">/kg</span>' : ""}`}
+          </span>
+          <button class="btn-agregar" ${sinStock ? "disabled" : ""}>${sinStock ? "Sin stock" : (tieneVariantes ? "Ver opciones" : "Agregar")}</button>
         </div>
       </div>
     `;
@@ -1063,17 +1244,28 @@ function pintarProductos(){
     }
 
     if(!sinStock){
-      card.querySelector(".btn-agregar").onclick = () => agregarAlCarrito(p);
+      card.querySelector(".btn-agregar").onclick = () => {
+        if(tieneVariantes){ abrirSelectorVariantes(p); }
+        else{ agregarAlCarrito(p); }
+      };
     }
     cont.appendChild(card);
   });
 }
 
 // ---------- Lógica del carrito ----------
+// Cada línea del carrito se identifica por "idCarrito", no por "id" del
+// producto: así, dos variantes del mismo producto (ej. bandeja chica y
+// bandeja grande) quedan como líneas separadas en vez de mezclarse.
 function agregarAlCarrito(producto){
-  const existente = carrito.find(i => i.id === producto.id);
-  if(existente){ existente.cantidad += 1; }
-  else{ carrito.push({ ...producto, cantidad: 1 }); }
+  const idCarrito = String(producto.id);
+  const existente = carrito.find(i => i.idCarrito === idCarrito);
+  if(existente){
+    existente.cantidad = producto.porPeso ? existente.cantidad + (producto.pasoPesoKg || 0.1) : existente.cantidad + 1;
+  }else{
+    const cantidadInicial = producto.porPeso ? (producto.minimoPesoKg || 0.5) : 1;
+    carrito.push({ ...producto, idCarrito, cantidad: cantidadInicial });
+  }
   guardarCarrito();
   actualizarBadge();
   pulsarBadges();
@@ -1087,12 +1279,20 @@ function pulsarBadges(){
   });
 }
 
-function cambiarCantidad(id, delta){
-  const item = carrito.find(i => i.id === id);
+function cambiarCantidad(idCarrito, delta){
+  const item = carrito.find(i => i.idCarrito === idCarrito);
   if(!item) return;
-  const paso = item.porPeso ? (item.pasoPesoKg || 0.5) : 1;
-  item.cantidad = Math.round((item.cantidad + delta * paso) * 100) / 100;
-  if(item.cantidad <= 0){ carrito = carrito.filter(i => i.id !== id); }
+  const paso = item.porPeso ? (item.pasoPesoKg || 0.1) : 1;
+  const minimo = item.porPeso ? (item.minimoPesoKg || 0.5) : 1;
+  const nuevaCantidad = Math.round((item.cantidad + delta * paso) * 1000) / 1000;
+  if(delta < 0 && nuevaCantidad < minimo){
+    // Con los botones no se baja del mínimo de venta; para eso está "Quitar".
+    item.cantidad = minimo;
+  }else if(nuevaCantidad <= 0){
+    carrito = carrito.filter(i => i.idCarrito !== idCarrito);
+  }else{
+    item.cantidad = nuevaCantidad;
+  }
   guardarCarrito();
   actualizarBadge();
   pintarPanelCarrito();
@@ -1104,6 +1304,73 @@ function formatoCantidad(item){
 
 function hayProductoPorPeso(){
   return carrito.some(i => i.porPeso);
+}
+
+// ---------- Selector de variantes (tamaños/presentaciones) ----------
+let productoEnSeleccion = null;
+let varianteSeleccionada = 0;
+
+function abrirSelectorVariantes(producto){
+  productoEnSeleccion = producto;
+  varianteSeleccionada = 0;
+  document.getElementById("fondoVariantes").classList.add("abierto");
+  document.getElementById("modalVariantes").classList.add("abierto");
+  pintarModalVariantes();
+}
+
+function cerrarSelectorVariantes(){
+  document.getElementById("fondoVariantes").classList.remove("abierto");
+  document.getElementById("modalVariantes").classList.remove("abierto");
+}
+
+function pintarModalVariantes(){
+  const p = productoEnSeleccion;
+  document.getElementById("modalVariantesTitulo").textContent = p.nombre;
+  const body = document.getElementById("modalVariantesBody");
+
+  body.innerHTML = `
+    ${p.desc ? `<p class="modal-variantes-desc">${p.desc}</p>` : ""}
+    <div class="lista-variantes">
+      ${p.variantes.map((v, i) => `
+        <div class="fila-variante ${i === varianteSeleccionada ? "activo" : ""}" data-index="${i}">
+          <span class="variante-nombre">${v.nombre}</span>
+          <span class="variante-precio">${formatoPrecio(v.precio)}</span>
+        </div>
+      `).join("")}
+    </div>
+    <button class="btn-continuar" id="btnAgregarVariante">Agregar al carrito — ${formatoPrecio(p.variantes[varianteSeleccionada].precio)}</button>
+  `;
+
+  body.querySelectorAll(".fila-variante").forEach(fila => {
+    fila.onclick = () => {
+      varianteSeleccionada = parseInt(fila.dataset.index);
+      pintarModalVariantes();
+    };
+  });
+  document.getElementById("btnAgregarVariante").onclick = agregarVarianteAlCarrito;
+}
+
+function agregarVarianteAlCarrito(){
+  const p = productoEnSeleccion;
+  const v = p.variantes[varianteSeleccionada];
+  const idCarrito = `${p.id}-v${varianteSeleccionada}`;
+
+  const existente = carrito.find(i => i.idCarrito === idCarrito);
+  if(existente){ existente.cantidad += 1; }
+  else{
+    carrito.push({
+      ...p,
+      idCarrito,
+      nombre: `${p.nombre} — ${v.nombre}`,
+      precio: v.precio,
+      variantes: undefined,
+      cantidad: 1
+    });
+  }
+  guardarCarrito();
+  actualizarBadge();
+  pulsarBadges();
+  cerrarSelectorVariantes();
 }
 
 // ---------- Horario de atención ----------
@@ -1129,6 +1396,21 @@ function pintarChipHorario(){
     chip.textContent = "🔴 Cerrado ahora";
     chip.classList.add("chip-cerrado");
   }
+}
+
+// Días en el orden en que se muestran (arranca en lunes, como se usa en
+// Argentina), armado a partir de los mismos horarios de TIENDA.horarios,
+// para no tener que escribir el horario dos veces en lugares distintos.
+const ORDEN_DIAS_VISIBLE = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"];
+const NOMBRE_DIA = { lunes:"Lunes", martes:"Martes", miercoles:"Miércoles", jueves:"Jueves", viernes:"Viernes", sabado:"Sábado", domingo:"Domingo" };
+
+function pintarDetalleHorario(){
+  const cont = document.getElementById("detalleHorario");
+  cont.innerHTML = ORDEN_DIAS_VISIBLE.map(dia => {
+    const franjas = TIENDA.horarios[dia] || [];
+    const texto = franjas.length ? franjas.map(([d, h]) => `${d} a ${h}`).join(" y ") : "Cerrado";
+    return `<div class="fila-horario"><span>${NOMBRE_DIA[dia]}</span><span>${texto}</span></div>`;
+  }).join("");
 }
 
 // Filtros para los campos del formulario.
@@ -1177,8 +1459,8 @@ function copiarConFallback(texto, callback){
 // Se puede editar libremente el redactado sin romper nada.
 const AVISO_PESO = "⚖️ Los productos que se venden por peso se cobran según lo que marque la balanza al pesarlos: el monto puede ajustarse un poco respecto a lo que ves acá.";
 
-function quitarDelCarrito(id){
-  carrito = carrito.filter(i => i.id !== id);
+function quitarDelCarrito(idCarrito){
+  carrito = carrito.filter(i => i.idCarrito !== idCarrito);
   guardarCarrito();
   actualizarBadge();
   pintarPanelCarrito();
@@ -1235,14 +1517,34 @@ function pintarVistaLista(){
         <div class="item-nombre">${i.nombre}</div>
         <div class="item-precio-unit">${formatoPrecio(i.precio)} ${i.porPeso ? "por kg" : "c/u"}</div>
         <div class="stepper">
-          <button onclick="cambiarCantidad(${i.id}, -1)">−</button>
-          <span>${formatoCantidad(i)}</span>
-          <button onclick="cambiarCantidad(${i.id}, 1)">+</button>
+          <button onclick="cambiarCantidad('${i.idCarrito}', -1)">−</button>
+          <input type="text" inputmode="decimal" class="input-cantidad" data-idcarrito="${i.idCarrito}" value="${i.cantidad}">
+          ${i.porPeso ? '<span class="sufijo-cantidad">kg</span>' : ""}
+          <button onclick="cambiarCantidad('${i.idCarrito}', 1)">+</button>
         </div>
-        <button class="quitar" onclick="quitarDelCarrito(${i.id})">Quitar</button>
+        <button class="quitar" onclick="quitarDelCarrito('${i.idCarrito}')">Quitar</button>
       </div>
     </div>
   `).join("");
+
+  // Además de los botones +/-, el cliente puede escribir la cantidad a mano
+  // (útil, por ejemplo, para pedidos grandes al por mayor).
+  cuerpo.querySelectorAll(".input-cantidad").forEach(input => {
+    input.onchange = e => {
+      const idCarrito = e.target.dataset.idcarrito;
+      const item = carrito.find(i => i.idCarrito === idCarrito);
+      if(!item) return;
+      const valor = parseFloat(e.target.value.replace(",", "."));
+      if(isNaN(valor) || valor <= 0){
+        carrito = carrito.filter(i => i.idCarrito !== idCarrito);
+      }else{
+        item.cantidad = item.porPeso ? Math.round(valor * 1000) / 1000 : Math.round(valor);
+      }
+      guardarCarrito();
+      actualizarBadge();
+      pintarPanelCarrito();
+    };
+  });
 
   pie.innerHTML = `
     ${hayProductoPorPeso() ? `<div class="aviso-envio">${AVISO_PESO}</div>` : ""}
@@ -1452,6 +1754,8 @@ function pintarVistaConfirmacion(){
 document.getElementById("btnAbrirCarrito").onclick = abrirCarrito;
 document.getElementById("btnCerrarCarrito").onclick = cerrarCarrito;
 document.getElementById("fondoOscuro").onclick = cerrarCarrito;
+document.getElementById("btnCerrarVariantes").onclick = cerrarSelectorVariantes;
+document.getElementById("fondoVariantes").onclick = cerrarSelectorVariantes;
 document.getElementById("buscador").addEventListener("input", (e) => {
   textoBusqueda = e.target.value.trim().toLowerCase();
   pintarProductos();
@@ -1474,6 +1778,10 @@ pintarProductos();
 actualizarBadge();
 pintarChipHorario();
 setInterval(pintarChipHorario, 60000);
+pintarDetalleHorario();
+document.getElementById("chipHorario").onclick = () => {
+  document.getElementById("detalleHorario").classList.toggle("abierto");
+};
 </script>
 
 </body>
