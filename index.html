@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>Catálogo Demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,6 +29,10 @@
 }
 
 *{box-sizing:border-box; margin:0; padding:0;}
+
+html{
+  background:var(--crema);
+}
 
 body{
   background:var(--crema);
@@ -102,6 +107,11 @@ header.tienda::after{
   font-size:12.5px;
   padding:6px 12px;
   border-radius:20px;
+}
+
+.chip-cerrado{
+  background:rgba(228,87,46,.25);
+  border-color:rgba(228,87,46,.6);
 }
 
 /* ---------- Carrito flotante al scrollear ---------- */
@@ -311,6 +321,18 @@ main{
   top:8px; left:8px;
   background:var(--coral-oscuro);
   color:white;
+  font-size:10.5px;
+  font-weight:700;
+  padding:3px 8px;
+  border-radius:6px;
+  z-index:2;
+}
+
+.badge-destacado{
+  position:absolute;
+  top:8px; right:8px;
+  background:#F0A63A;
+  color:#3A2600;
   font-size:10.5px;
   font-weight:700;
   padding:3px 8px;
@@ -651,6 +673,26 @@ main{
   margin-bottom:14px;
 }
 
+.aviso-alerta{
+  background:#FBEAE3;
+  color:var(--coral-oscuro);
+  font-weight:600;
+}
+
+.confirmacion{
+  text-align:center;
+  padding:30px 10px;
+}
+.confirmacion-icono{
+  font-size:52px;
+  margin-bottom:14px;
+}
+.confirmacion-texto{
+  font-size:14px;
+  color:var(--texto-suave);
+  line-height:1.5;
+}
+
 .datos-transferencia{
   background:var(--crema);
   border-radius:10px;
@@ -721,6 +763,7 @@ main{
       </button>
     </div>
     <div class="info-envio">
+      <span class="chip" id="chipHorario">🕒 Cargando horario...</span>
       <span class="chip">🚚 Envío a domicilio (a cargo del cliente)</span>
       <span class="chip">🏪 Retiro en el local</span>
     </div>
@@ -776,7 +819,7 @@ const TIENDA = {
   descripcion: "Ejemplo de catálogo con productos de distintos rubros. Elegí, armá tu pedido y coordinamos todo por WhatsApp.",
   // Número de WhatsApp SIN el "+", SIN espacios ni guiones.
   // Ejemplo Argentina Chacabuco: código país 54 + 9 + código de área SIN el 0 + número SIN el 15
-  whatsapp: "5492364410707",
+  whatsapp: "5491122334455",
   // Costo de envío EN NÚMEROS (sin puntos ni comas). Ejemplo: 1500
   // Si lo dejás en 0, se muestra el texto de "costoEnvioTexto" en vez de un monto fijo.
   costoEnvio: 1500,
@@ -790,6 +833,22 @@ const TIENDA = {
     alias: "donalimpia.mp",
     cbu: "0000003100000012345678",
     titular: "Nombre Apellido"
+  },
+  // Monto mínimo de compra para poder elegir "Envío a domicilio", EN NÚMEROS.
+  // Dejalo en 0 si no querés poner un mínimo.
+  pedidoMinimoEnvio: 5000,
+  // Horario de atención, para mostrar si el comercio está abierto o cerrado.
+  // Formato 24hs, "HH:MM". Cada día puede tener una o dos franjas horarias
+  // (mañana y tarde, para el clásico horario con siesta). Si el comercio no
+  // atiende ese día, dejá la lista vacía: [].
+  horarios: {
+    domingo:   [],
+    lunes:     [["08:00", "13:00"], ["17:00", "21:00"]],
+    martes:    [["08:00", "13:00"], ["17:00", "21:00"]],
+    miercoles: [["08:00", "13:00"], ["17:00", "21:00"]],
+    jueves:    [["08:00", "13:00"], ["17:00", "21:00"]],
+    viernes:   [["08:00", "13:00"], ["17:00", "21:00"]],
+    sabado:    [["08:00", "13:00"]]
   }
 };
 
@@ -797,7 +856,10 @@ const TIENDA = {
 //    Estas son SOLO DE EJEMPLO, para mostrar que el catálogo sirve para
 //    cualquier rubro. Para un comercio real, dejás nada más las categorías
 //    que ese comercio necesita.
-const CATEGORIAS = ["Todos", "Verdulería", "Panadería", "Fiambrería", "Ferretería", "Indumentaria", "Muebles", "Limpieza"];
+// "Destacados" es un filtro especial: no es un rubro real, muestra los
+// productos marcados con destacado:true sin importar su categoría. Los
+// productos siguen viéndose en su categoría normal además de acá.
+const CATEGORIAS = ["Todos", "Destacados", "Verdulería", "Panadería", "Fiambrería", "Ferretería", "Indumentaria", "Muebles", "Limpieza"];
 
 // 3) Productos. Cada producto tiene:
 //    - icono: un emoji que se usa como foto de ejemplo (siempre queda como respaldo)
@@ -812,6 +874,10 @@ const CATEGORIAS = ["Todos", "Verdulería", "Panadería", "Fiambrería", "Ferret
 //    - stock: true = se puede agregar al carrito. false = aparece como "Sin stock"
 //      y no se puede agregar. Por ahora esto se cambia a mano; más adelante
 //      se puede conectar a un Google Sheet para que se actualice solo.
+//    - destacado: OPCIONAL, poner true para que el producto aparezca también
+//      en el filtro "Destacados" (además de en su categoría de siempre), y
+//      con una etiqueta de "Destacado" en la tarjeta para que se note en
+//      cualquier lado que se muestre.
 //    - porPeso: OPCIONAL, poner true SOLO en productos que se venden por peso
 //      (verdura, fruta, fiambre, pan, etc.). El precio se muestra como precio
 //      por kg, y en el carrito la cantidad se suma/resta en gramos en vez de
@@ -849,7 +915,7 @@ const PRODUCTOS = [
   { id:15, nombre:"Silicona multiuso", categoria:"Ferretería", precio:2100, icono:"🧴", imagen:"", stock:true, desc:"" },
 
   // ---- Indumentaria (ejemplo) ----
-  { id:16, nombre:"Remera básica", categoria:"Indumentaria", precio:5500, icono:"👕", imagen:"", stock:true, desc:"Varios talles" },
+  { id:16, nombre:"Remera básica", categoria:"Indumentaria", precio:5500, icono:"👕", imagen:"", stock:true, destacado:true, desc:"Varios talles" },
   { id:17, nombre:"Medias x3", categoria:"Indumentaria", precio:2800, icono:"🧦", imagen:"", stock:true, desc:"" },
   { id:18, nombre:"Gorra", categoria:"Indumentaria", precio:4200, icono:"🧢", imagen:"", stock:true, desc:"" },
   { id:19, nombre:"Buzo canguro", categoria:"Indumentaria", precio:9800, icono:"🧥", imagen:"", stock:true, desc:"" },
@@ -858,13 +924,13 @@ const PRODUCTOS = [
   // ---- Muebles (ejemplo, con un mueble mostrado desde varios ángulos) ----
   { id:26, nombre:"Mesa ratona melamina", categoria:"Muebles", precio:42000, icono:"🪑",
     imagenes:["imagenes/mesa-frente.jpg","imagenes/mesa-lateral.jpg","imagenes/mesa-detalle.jpg"],
-    stock:true, desc:"Terminado en melamina blanca, patas negras" },
+    stock:true, destacado:true, desc:"Terminado en melamina blanca, patas negras" },
   { id:27, nombre:"Placard 2 puertas", categoria:"Muebles", precio:98000, icono:"🚪", imagen:"", stock:true, desc:"A medida" },
   { id:28, nombre:"Escritorio", categoria:"Muebles", precio:65000, icono:"🖥️", imagen:"", stock:true, desc:"" },
   { id:29, nombre:"Repisa flotante", categoria:"Muebles", precio:15000, icono:"📚", imagen:"", stock:true, desc:"" },
 
   // ---- Limpieza (el rubro del comercio piloto) ----
-  { id:21, nombre:"Detergente concentrado 750ml", categoria:"Limpieza", precio:2200, icono:"🧴", imagen:"imagenes/detergente.jpg", stock:true, desc:"Rinde hasta 40 lavados" },
+  { id:21, nombre:"Detergente concentrado 750ml", categoria:"Limpieza", precio:2200, icono:"🧴", imagen:"imagenes/detergente.jpg", stock:true, destacado:true, desc:"Rinde hasta 40 lavados" },
   { id:22, nombre:"Lavandina 1L", categoria:"Limpieza", precio:900, icono:"🧪", imagen:"", stock:true, desc:"Desinfecta y blanquea" },
   { id:23, nombre:"Esponjas x3", categoria:"Limpieza", precio:800, icono:"🧻", imagen:"", stock:true, desc:"Doble faz, resistentes" },
   { id:24, nombre:"Jabón en polvo 800g", categoria:"Limpieza", precio:2600, icono:"🫧", imagen:"", stock:true, desc:"Para lavado a mano y máquina" },
@@ -929,6 +995,9 @@ function pintarProductos(){
       return p.nombre.toLowerCase().includes(textoBusqueda) ||
              (p.desc || "").toLowerCase().includes(textoBusqueda);
     }
+    if(categoriaActiva === "Destacados"){
+      return p.destacado === true;
+    }
     return categoriaActiva === "Todos" || p.categoria === categoriaActiva;
   });
 
@@ -949,6 +1018,7 @@ function pintarProductos(){
     card.innerHTML = `
       <div class="foto-producto">
         ${sinStock ? '<span class="badge-sinstock">Sin stock</span>' : ""}
+        ${p.destacado ? '<span class="badge-destacado">⭐ Destacado</span>' : ""}
         <div class="galeria-img"></div>
         ${imagenes.length > 1 ? `
           <button class="flecha flecha-izq" type="button" aria-label="Foto anterior">‹</button>
@@ -1036,6 +1106,31 @@ function hayProductoPorPeso(){
   return carrito.some(i => i.porPeso);
 }
 
+// ---------- Horario de atención ----------
+const DIAS_SEMANA = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+
+function estaAbierto(fecha = new Date()){
+  const diaKey = DIAS_SEMANA[fecha.getDay()];
+  const franjas = TIENDA.horarios[diaKey] || [];
+  const minutosAhora = fecha.getHours() * 60 + fecha.getMinutes();
+  return franjas.some(([desde, hasta]) => {
+    const [hD, mD] = desde.split(":").map(Number);
+    const [hH, mH] = hasta.split(":").map(Number);
+    return minutosAhora >= (hD * 60 + mD) && minutosAhora < (hH * 60 + mH);
+  });
+}
+
+function pintarChipHorario(){
+  const chip = document.getElementById("chipHorario");
+  if(estaAbierto()){
+    chip.textContent = "🟢 Abierto ahora";
+    chip.classList.remove("chip-cerrado");
+  }else{
+    chip.textContent = "🔴 Cerrado ahora";
+    chip.classList.add("chip-cerrado");
+  }
+}
+
 // Filtros para los campos del formulario.
 function soloLetras(texto){
   return texto.replace(/[^A-Za-zÀ-ÿñÑ\s]/g, "");
@@ -1118,6 +1213,7 @@ function cerrarCarrito(){
 
 function pintarPanelCarrito(){
   if(vistaCarrito === "lista"){ pintarVistaLista(); }
+  else if(vistaCarrito === "confirmacion"){ pintarVistaConfirmacion(); }
   else{ pintarVistaFormulario(); }
 }
 
@@ -1172,12 +1268,17 @@ function pintarVistaFormulario(){
   cuerpo.innerHTML = `
     <button class="volver" id="btnVolver">← Volver al pedido</button>
 
+    ${!estaAbierto() ? '<div class="aviso-envio">🕒 En este momento el comercio está cerrado. Tu pedido queda guardado y te van a responder ni bien vuelvan a abrir.</div>' : ""}
+
     <div class="opciones-entrega">
       <div class="opcion-entrega ${entregaElegida === 'retiro' ? 'activo' : ''}" id="optRetiro">🏪 Retiro en el local</div>
       <div class="opcion-entrega ${entregaElegida === 'envio' ? 'activo' : ''}" id="optEnvio">🚚 Envío a domicilio</div>
     </div>
 
     ${entregaElegida === 'envio' ? `<div class="aviso-envio">🚚 ${TIENDA.costoEnvio > 0 ? `Costo de envío: ${formatoPrecio(TIENDA.costoEnvio)} — se abona aparte, al cadete, en el momento de la entrega.` : TIENDA.costoEnvioTexto}</div>` : ""}
+
+    ${entregaElegida === 'envio' && TIENDA.pedidoMinimoEnvio > 0 && subtotalCarrito() < TIENDA.pedidoMinimoEnvio ? `
+    <div class="aviso-envio aviso-alerta">⚠️ El pedido mínimo para envío a domicilio es ${formatoPrecio(TIENDA.pedidoMinimoEnvio)}. Te faltan ${formatoPrecio(TIENDA.pedidoMinimoEnvio - subtotalCarrito())} — agregá algún producto más o elegí retiro en el local.</div>` : ""}
 
     <div class="opciones-entrega">
       <div class="opcion-entrega ${formaPagoElegida === 'efectivo' ? 'activo' : ''}" id="optEfectivo">💵 Efectivo</div>
@@ -1200,7 +1301,9 @@ function pintarVistaFormulario(){
       <div class="fila-dato-transferencia">
         <div><span class="etiqueta-dato">Titular</span><span class="valor-dato">${TIENDA.datosTransferencia.titular}</span></div>
       </div>` : ""}
-    </div>` : ""}
+    </div>
+    <div class="aviso-envio">📎 Después de transferir, compartí el comprobante con el comercio por este mismo WhatsApp.</div>
+    ` : ""}
 
     <div class="campo">
       <label>Nombre y apellido</label>
@@ -1250,6 +1353,7 @@ function pintarVistaFormulario(){
   }
 
   const envioActual = entregaElegida === "envio" && TIENDA.costoEnvio > 0 ? TIENDA.costoEnvio : 0;
+  const bloqueadoPorMinimo = entregaElegida === "envio" && TIENDA.pedidoMinimoEnvio > 0 && subtotalCarrito() < TIENDA.pedidoMinimoEnvio;
 
   pie.innerHTML = `
     ${hayProductoPorPeso() ? `<div class="aviso-envio">${AVISO_PESO}</div>` : ""}
@@ -1262,12 +1366,14 @@ function pintarVistaFormulario(){
       <span>Envío — se paga aparte, al cadete</span>
       <span>${formatoPrecio(envioActual)}</span>
     </div>` : ""}
-    <button class="btn-continuar" id="btnEnviarPedido">Enviar pedido por WhatsApp</button>
+    <button class="btn-continuar" id="btnEnviarPedido" ${bloqueadoPorMinimo ? "disabled" : ""}>Enviar pedido por WhatsApp</button>
   `;
   document.getElementById("btnEnviarPedido").onclick = enviarPedidoPorWhatsapp;
 }
 
 // ---------- Armado y envío del mensaje de WhatsApp ----------
+let ultimoLinkWhatsapp = "";
+
 function enviarPedidoPorWhatsapp(){
   const nombre = datosFormulario.nombre.trim();
   const telefono = datosFormulario.telefono.trim();
@@ -1282,6 +1388,10 @@ function enviarPedidoPorWhatsapp(){
     alert("Por favor completá la dirección de entrega.");
     return;
   }
+  if(entregaElegida === "envio" && TIENDA.pedidoMinimoEnvio > 0 && subtotalCarrito() < TIENDA.pedidoMinimoEnvio){
+    alert(`El pedido mínimo para envío a domicilio es ${formatoPrecio(TIENDA.pedidoMinimoEnvio)}. Agregá algún producto más o elegí retiro en el local.`);
+    return;
+  }
 
   let mensaje = `Hola ${TIENDA.nombre}! Quiero hacer este pedido:%0A%0A`;
 
@@ -1292,19 +1402,50 @@ function enviarPedidoPorWhatsapp(){
   mensaje += `%0ATotal de la compra${hayProductoPorPeso() ? " (puede ajustarse al pesar)" : ""}: ${formatoPrecio(subtotalCarrito())}%0A%0A`;
   mensaje += `Modalidad: ${entregaElegida === "envio" ? "Envío a domicilio" : "Retiro en el local"}%0A`;
   mensaje += `Forma de pago: ${formaPagoElegida === "transferencia" ? "Transferencia" : "Efectivo"}%0A`;
+  if(formaPagoElegida === "transferencia"){
+    mensaje += `(Voy a compartir el comprobante por acá)%0A`;
+  }
   mensaje += `Nombre: ${nombre}%0A`;
   mensaje += `Teléfono: ${telefono}%0A`;
   if(direccion) mensaje += `Dirección: ${direccion}%0A`;
   if(notas) mensaje += `Notas: ${notas}%0A`;
 
-  const url = `https://wa.me/${TIENDA.whatsapp}?text=${mensaje}`;
-  window.open(url, "_blank");
+  ultimoLinkWhatsapp = `https://wa.me/${TIENDA.whatsapp}?text=${mensaje}`;
+  window.open(ultimoLinkWhatsapp, "_blank");
 
   carrito = [];
   guardarCarrito();
   actualizarBadge();
   datosFormulario = { nombre:"", telefono:"", direccion:"", notas:"" };
-  cerrarCarrito();
+  vistaCarrito = "confirmacion";
+  pintarPanelCarrito();
+}
+
+// ---------- Pantalla de confirmación después de enviar el pedido ----------
+function pintarVistaConfirmacion(){
+  document.getElementById("tituloPanel").textContent = "¡Listo!";
+  const cuerpo = document.getElementById("cuerpoPanel");
+  const pie = document.getElementById("piePanel");
+
+  cuerpo.innerHTML = `
+    <div class="confirmacion">
+      <div class="confirmacion-icono">✅</div>
+      <p class="confirmacion-texto">Se abrió WhatsApp con el detalle de tu pedido. Si por algo no se abrió solo, tocá el botón de abajo para intentarlo de nuevo.</p>
+    </div>
+  `;
+
+  pie.innerHTML = `
+    <button class="btn-continuar" id="btnReabrirWsp">Abrir WhatsApp de nuevo</button>
+    <button class="btn-secundario" id="btnListoConfirmacion">Listo, volver al catálogo</button>
+  `;
+
+  document.getElementById("btnReabrirWsp").onclick = () => {
+    if(ultimoLinkWhatsapp) window.open(ultimoLinkWhatsapp, "_blank");
+  };
+  document.getElementById("btnListoConfirmacion").onclick = () => {
+    vistaCarrito = "lista";
+    cerrarCarrito();
+  };
 }
 
 // ---------- Eventos generales ----------
@@ -1331,6 +1472,8 @@ actualizarVisibilidadFab();
 pintarCategorias();
 pintarProductos();
 actualizarBadge();
+pintarChipHorario();
+setInterval(pintarChipHorario, 60000);
 </script>
 
 </body>
