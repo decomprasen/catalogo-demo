@@ -358,6 +358,18 @@ main{
   z-index:2;
 }
 
+.badge-stockbajo{
+  position:absolute;
+  top:8px; left:8px;
+  background:#C77D00;
+  color:white;
+  font-size:10.5px;
+  font-weight:700;
+  padding:3px 8px;
+  border-radius:6px;
+  z-index:2;
+}
+
 .badge-destacado{
   position:absolute;
   top:8px; right:8px;
@@ -967,7 +979,7 @@ const TIENDA = {
   descripcion: "Ejemplo de catálogo con productos de distintos rubros. Elegí, armá tu pedido y coordinamos todo por WhatsApp.",
   // Número de WhatsApp SIN el "+", SIN espacios ni guiones.
   // Ejemplo Argentina Chacabuco: código país 54 + 9 + código de área SIN el 0 + número SIN el 15
-  whatsapp: "5492364410707",
+  whatsapp: "5491122334455",
   // Costo de envío EN NÚMEROS (sin puntos ni comas). Ejemplo: 1500
   // Si lo dejás en 0, se muestra el texto de "costoEnvioTexto" en vez de un monto fijo.
   costoEnvio: 1500,
@@ -985,6 +997,11 @@ const TIENDA = {
   // Monto mínimo de compra para poder elegir "Envío a domicilio", EN NÚMEROS.
   // Dejalo en 0 si no querés poner un mínimo.
   pedidoMinimoEnvio: 5000,
+  // Cuando un producto tiene el stock cargado como número (ver más abajo,
+  // en PRODUCTOS), si le quedan ESTAS unidades o menos, se muestra un aviso
+  // de "últimas unidades" en su tarjeta. No afecta a los productos que usan
+  // stock:true / stock:false en vez de un número.
+  umbralStockBajo: 3,
   // Horario de atención, para mostrar si el comercio está abierto o cerrado.
   // Formato 24hs, "HH:MM". Cada día puede tener una o dos franjas horarias
   // (mañana y tarde, para el clásico horario con siesta). Si el comercio no
@@ -1019,9 +1036,19 @@ const CATEGORIAS = ["Todos", "Destacados", "Verdulería", "Panadería", "Fiambre
 //      Si un producto tiene "imagenes", esas fotos se muestran con flechitas para
 //      pasar de una a otra. Si solo tiene "imagen" (una sola), no aparecen flechitas.
 //      Si no tiene ninguna de las dos (o el archivo no se encuentra), se muestra el emoji.
-//    - stock: true = se puede agregar al carrito. false = aparece como "Sin stock"
-//      y no se puede agregar. Por ahora esto se cambia a mano; más adelante
-//      se puede conectar a un Google Sheet para que se actualice solo.
+//    - stock: se puede usar de dos formas, según lo que necesite el comercio.
+//      SIMPLE: true = se puede agregar al carrito. false = aparece como
+//      "Sin stock" y no se puede agregar. Se actualiza a mano cuando el
+//      comercio te avisa que se quedó sin algo.
+//      CON CANTIDAD: en vez de true, poner directamente el número de
+//      unidades que quedan (ej: stock:4). El producto se sigue pudiendo
+//      agregar mientras el número sea mayor a 0, y cuando llega al umbral
+//      configurado en TIENDA.umbralStockBajo (o menos), aparece un aviso de
+//      "últimas unidades" en la tarjeta, automáticamente. Cuando llega a 0,
+//      se comporta igual que stock:false.
+//      No hace falta que todos los productos de un mismo comercio usen la
+//      misma forma: podés combinar productos con true/false y productos
+//      con número, según lo que pida cada uno.
 //    - destacado: OPCIONAL, poner true para que el producto aparezca también
 //      en el filtro "Destacados" (además de en su categoría de siempre), y
 //      con una etiqueta de "Destacado" en la tarjeta para que se note en
@@ -1076,7 +1103,7 @@ const PRODUCTOS = [
   // ---- Indumentaria (ejemplo) ----
   { id:16, nombre:"Remera básica", categoria:"Indumentaria", precio:5500, icono:"👕", imagen:"", stock:true, destacado:true, desc:"Varios talles" },
   { id:17, nombre:"Medias x3", categoria:"Indumentaria", precio:2800, icono:"🧦", imagen:"", stock:true, desc:"" },
-  { id:18, nombre:"Gorra", categoria:"Indumentaria", precio:4200, icono:"🧢", imagen:"", stock:true, desc:"" },
+  { id:18, nombre:"Gorra", categoria:"Indumentaria", precio:4200, icono:"🧢", imagen:"", stock:2, desc:"" },
   { id:19, nombre:"Buzo canguro", categoria:"Indumentaria", precio:9800, icono:"🧥", imagen:"", stock:true, desc:"" },
   { id:20, nombre:"Zapatillas", categoria:"Indumentaria", precio:15000, icono:"👟", imagen:"", stock:false, desc:"" },
 
@@ -1183,7 +1210,8 @@ function pintarProductos(){
   }
 
   lista.forEach(p => {
-    const sinStock = p.stock === false;
+    const sinStock = typeof p.stock === "number" ? p.stock <= 0 : p.stock === false;
+    const stockBajo = typeof p.stock === "number" && p.stock > 0 && p.stock <= TIENDA.umbralStockBajo;
     const tieneVariantes = p.variantes && p.variantes.length > 0;
     // Lista de fotos del producto: si tiene "imagenes" (varias), se usa esa.
     // Si no, y tiene "imagen" (una sola), se usa como lista de un solo elemento.
@@ -1197,6 +1225,7 @@ function pintarProductos(){
     card.innerHTML = `
       <div class="foto-producto">
         ${sinStock ? '<span class="badge-sinstock">Sin stock</span>' : ""}
+        ${!sinStock && stockBajo ? `<span class="badge-stockbajo">¡Últimas ${p.stock}!</span>` : ""}
         ${p.destacado ? '<span class="badge-destacado">⭐ Destacado</span>' : ""}
         <div class="galeria-img"></div>
         ${imagenes.length > 1 ? `
